@@ -96,7 +96,7 @@ A versão entregue compilava e passava nas demonstrações, mas uma revisão cui
 - a validação de tipos repetidos ao adicionar uma caixa só comparava contentores vizinhos e lia uma posição fora do vetor (só não rebentava porque, na importação, os contentores ainda não tinham tipo nesse momento);
 - várias listas eram devolvidas com posições `null` no fim ou expunham o vetor interno;
 - a distância total de uma rota era somada outra vez a cada chamada;
-- não era possível fazer mais do que uma viagem por veículo, cada rota só podia ter uma caixa, e o número de rotas dependia da capacidade interna dos vetores, pelo que algumas ficavam associadas a um veículo `null`;
+- cada rota só podia ter uma caixa, e o número de rotas dependia da capacidade interna dos vetores, pelo que algumas ficavam associadas a um veículo `null`;
 - a verificação de tipo repetido numa caixa comparava referências (`==`) em vez de usar `equals`;
 - `equals` sem `hashCode` em todas as classes de domínio;
 - os alertas eram criados mas nunca guardados em lado nenhum;
