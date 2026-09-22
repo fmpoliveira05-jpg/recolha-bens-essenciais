@@ -75,6 +75,8 @@ Para usar outra pasta de dados: `java -jar target/recolha-bens-essenciais.jar ca
 
 Um percurso rápido para ver o resultado: `1` (carregar dados) → `1` (ficheiros locais) → `5` (gerar rotas). Com os dados de exemplo são planeadas 8 rotas que recolhem 26 contentores, e ficam registados 2 alertas de leituras acima da capacidade do contentor.
 
+O [manual de utilização](docs/MANUAL.md) explica cada menu e sugere algumas experiências.
+
 > A Web API usada no ano letivo estava alojada no *MongoDB Atlas Data API*, serviço que foi descontinuado em 2025. A opção continua disponível (e o endereço é configurável em `HttpDataSource`), mas hoje só os ficheiros locais funcionam.
 
 ## Testes
