@@ -15,7 +15,7 @@ As regras do enunciado:
 - um contentor é recolhido quando passa dos **80 %** da capacidade;
 - **alimentos perecíveis** são recolhidos sempre, independentemente da lotação;
 - os veículos saem da base com contentores vazios e **trocam-nos** pelos cheios;
-- cada veículo tem um limite de contentores por tipo;
+- cada veículo tem um limite de contentores por tipo, e pode ser preciso fazer mais do que uma viagem;
 - dados inválidos recebidos da API não podem parar o sistema: são guardados como **alertas**, com a data e o objeto em causa;
 - era obrigatório usar os contratos (interfaces) fornecidos pelos docentes e **não era permitido usar a Java Collections Framework**.
 
@@ -34,12 +34,14 @@ flowchart LR
     B -- não --> X[Fica na caixa]
     B -- sim --> C[Ordenar por prioridade<br/>perecíveis primeiro, depois os mais cheios]
     C --> D[Escolher veículo com lugar e<br/>contentor vazio do mesmo tipo]
-    D -- nenhum --> Y[Conta como não recolhido]
+    D -- nenhum com lugar --> G[Veículo regressa à base<br/>e faz nova viagem, até 3]
+    G -- impossível --> Y[Conta como não recolhido]
+    G --> E
     D --> E[Ordenar paragens pelo<br/>vizinho mais próximo]
     E --> F[Mapa de recolha + relatório]
 ```
 
-Na escolha do veículo dá-se preferência a um que já vá passar nessa caixa e, a seguir, ao que estiver mais perto. É um algoritmo guloso: não garante a solução ótima (o problema é uma variante do *Vehicle Routing Problem*, NP-difícil), mas é simples de explicar, determinístico e cumpre todas as restrições.
+Na escolha do veículo dá-se preferência a um que já vá passar nessa caixa e, a seguir, ao que estiver mais perto. Quando nenhum veículo em rota tem lugar, o que fez menos viagens volta à base e sai outra vez (no máximo 3 viagens por dia). É um algoritmo guloso: não garante a solução ótima (o problema é uma variante do *Vehicle Routing Problem*, NP-difícil), mas é simples de explicar, determinístico e cumpre todas as restrições.
 
 ## Arquitetura
 
@@ -85,7 +87,7 @@ O [manual de utilização](docs/MANUAL.md) explica cada menu e sugere algumas ex
 mvn test
 ```
 
-39 testes JUnit 5 cobrem a lista dinâmica, as regras dos contentores e das leituras, as operações da instituição, a edição de rotas, o cálculo de distâncias (base → caixas → base) e o gerador de rotas em cenários pequenos construídos à medida. O importador é testado com os ficheiros reais e com documentos JSON inválidos. O GitHub Actions corre tudo em cada *push*.
+40 testes JUnit 5 cobrem a lista dinâmica, as regras dos contentores e das leituras, as operações da instituição, a edição de rotas, o cálculo de distâncias (base → caixas → base) e o gerador de rotas em cenários pequenos construídos à medida. O importador é testado com os ficheiros reais e com documentos JSON inválidos. O GitHub Actions corre tudo em cada *push*.
 
 ## O que mudou na revisão de 2026
 
@@ -94,7 +96,7 @@ A versão entregue compilava e passava nas demonstrações, mas uma revisão cui
 - a validação de tipos repetidos ao adicionar uma caixa só comparava contentores vizinhos e lia uma posição fora do vetor (só não rebentava porque, na importação, os contentores ainda não tinham tipo nesse momento);
 - várias listas eram devolvidas com posições `null` no fim ou expunham o vetor interno;
 - a distância total de uma rota era somada outra vez a cada chamada;
-- cada rota só podia ter uma caixa, e o número de rotas dependia da capacidade interna dos vetores, pelo que algumas ficavam associadas a um veículo `null`;
+- não era possível fazer mais do que uma viagem por veículo, cada rota só podia ter uma caixa, e o número de rotas dependia da capacidade interna dos vetores, pelo que algumas ficavam associadas a um veículo `null`;
 - a verificação de tipo repetido numa caixa comparava referências (`==`) em vez de usar `equals`;
 - `equals` sem `hashCode` em todas as classes de domínio;
 - os alertas eram criados mas nunca guardados em lado nenhum;

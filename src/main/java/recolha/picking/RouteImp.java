@@ -22,6 +22,7 @@ public class RouteImp implements Route {
 
     private final Vehicle vehicle;
     private final InstitutionImp institution;
+    private final int trip;
     private final DynamicArray<AidBox> stops = new DynamicArray<>();
     private final DynamicArray<Pickup> pickups = new DynamicArray<>();
     private Report report;
@@ -31,11 +32,26 @@ public class RouteImp implements Route {
      * @param institution instituição (dá as distâncias a partir da base)
      */
     public RouteImp(Vehicle vehicle, InstitutionImp institution) {
-        if (vehicle == null || institution == null) {
-            throw new IllegalArgumentException("A rota precisa de um veículo e de uma instituição.");
+        this(vehicle, institution, 1);
+    }
+
+    /**
+     * @param vehicle veículo que faz a rota
+     * @param institution instituição (dá as distâncias a partir da base)
+     * @param trip número da viagem do veículo nesse dia (1, 2, ...)
+     */
+    public RouteImp(Vehicle vehicle, InstitutionImp institution, int trip) {
+        if (vehicle == null || institution == null || trip < 1) {
+            throw new IllegalArgumentException("A rota precisa de um veículo, de uma instituição e de um número de viagem válido.");
         }
         this.vehicle = vehicle;
         this.institution = institution;
+        this.trip = trip;
+    }
+
+    /** @return número da viagem do veículo nesse dia */
+    public int getTrip() {
+        return this.trip;
     }
 
     @Override
@@ -213,7 +229,11 @@ public class RouteImp implements Route {
 
     @Override
     public String toString() {
-        StringBuilder text = new StringBuilder("Veículo ").append(this.vehicle.getCode()).append(": Base");
+        StringBuilder text = new StringBuilder("Veículo ").append(this.vehicle.getCode());
+        if (this.trip > 1) {
+            text.append(" (viagem ").append(this.trip).append(')');
+        }
+        text.append(": Base");
         for (int i = 0; i < this.stops.size(); i++) {
             text.append(" → ").append(this.stops.get(i).getCode());
         }

@@ -28,6 +28,9 @@ import recolha.util.DynamicArray;
  *   <li>Atribui cada contentor a um veículo ativo que suporte o tipo, ainda tenha lugar e
  *       tenha levado da base um contentor vazio do mesmo tipo para a troca. Dá preferência a
  *       um veículo que já passe nessa caixa e, a seguir, ao que estiver mais perto dela.</li>
+ *   <li>Se nenhum veículo já em rota tiver lugar, um veículo compatível regressa à base e
+ *       faz uma nova viagem (o enunciado prevê que possa ser preciso mais do que um caminho),
+ *       até {@link #MAX_TRIPS_PER_VEHICLE} viagens por dia.</li>
  *   <li>Por fim, ordena as paragens de cada rota pelo vizinho mais próximo, a partir da base.</li>
  * </ol>
  * <p>Contentores que precisavam de recolha mas não couberam contam como "não recolhidos" no
@@ -37,6 +40,9 @@ import recolha.util.DynamicArray;
  * @author Francisco Miguel Pereira Oliveira
  */
 public class RouteGeneratorImp implements RouteGenerator {
+
+    /** Número máximo de viagens que cada veículo faz num dia. */
+    public static final int MAX_TRIPS_PER_VEHICLE = 3;
 
     private final Clock clock;
 
@@ -67,9 +73,9 @@ public class RouteGeneratorImp implements RouteGenerator {
         InstitutionImp inst = (InstitutionImp) institution;
 
         Vehicle[] vehicles = inst.getVehicles();
-        VehiclePlan[] plans = new VehiclePlan[vehicles.length];
-        for (int i = 0; i < vehicles.length; i++) {
-            plans[i] = new VehiclePlan(new RouteImp(vehicles[i], inst));
+        DynamicArray<VehiclePlan> plans = new DynamicArray<>();
+        for (Vehicle vehicle : vehicles) {
+            plans.add(new VehiclePlan(new RouteImp(vehicle, inst, 1)));
         }
         DynamicArray<Container> sparePool = new DynamicArray<>();
         for (Container spare : inst.getSpareContainers()) {
@@ -88,19 +94,24 @@ public class RouteGeneratorImp implements RouteGenerator {
         }
 
         DynamicArray<Route> usedRoutes = new DynamicArray<>();
+        DynamicArray<Vehicle> usedVehicles = new DynamicArray<>();
         double totalDistance = 0;
         double totalDuration = 0;
-        for (VehiclePlan plan : plans) {
+        for (int p = 0; p < plans.size(); p++) {
+            VehiclePlan plan = plans.get(p);
             if (plan.route.getNumStops() > 0) {
                 plan.route.reorder(nearestNeighbourOrder(plan.route.getRoute(), inst));
                 totalDistance += plan.route.getTotalDistance();
                 totalDuration += plan.route.getTotalDuration();
                 usedRoutes.add(plan.route);
+                if (!usedVehicles.contains(plan.route.getVehicle())) {
+                    usedVehicles.add(plan.route.getVehicle());
+                }
             }
         }
 
         LocalDateTime now = LocalDateTime.now(this.clock);
-        ReportImp report = new ReportImp(now, usedRoutes.size(), vehicles.length - usedRoutes.size(),
+        ReportImp report = new ReportImp(now, usedVehicles.size(), vehicles.length - usedVehicles.size(),
                 picked, nonPicked, totalDistance, totalDuration);
         Route[] routes = usedRoutes.toArray(Route[]::new);
         for (Route route : routes) {
@@ -147,7 +158,7 @@ public class RouteGeneratorImp implements RouteGenerator {
         return sorted;
     }
 
-    private boolean assign(PendingPickup item, VehiclePlan[] plans, DynamicArray<Container> sparePool, InstitutionImp inst) {
+    private boolean assign(PendingPickup item, DynamicArray<VehiclePlan> plans, DynamicArray<Container> sparePool, InstitutionImp inst) {
         ContainerType type = item.container.getType();
         int spareIndex = findSpare(sparePool, type);
         if (spareIndex == -1) {
@@ -156,7 +167,8 @@ public class RouteGeneratorImp implements RouteGenerator {
 
         VehiclePlan best = null;
         double bestScore = Double.MAX_VALUE;
-        for (VehiclePlan plan : plans) {
+        for (int p = 0; p < plans.size(); p++) {
+            VehiclePlan plan = plans.get(p);
             if (!plan.hasRoomFor(type)) {
                 continue;
             }
@@ -168,6 +180,9 @@ public class RouteGeneratorImp implements RouteGenerator {
                 bestScore = score;
                 best = plan;
             }
+        }
+        if (best == null) {
+            best = startNewTrip(item, plans, inst);
         }
         if (best == null) {
             return false;
@@ -183,6 +198,39 @@ public class RouteGeneratorImp implements RouteGenerator {
         best.route.addPickup(new Pickup(item.aidBox, item.container, sparePool.removeAt(spareIndex)));
         best.use(type);
         return true;
+    }
+
+    /**
+     * Abre uma nova viagem para o veículo compatível que tiver feito menos viagens.
+     *
+     * @return o plano da nova viagem, ou {@code null} se nenhum veículo puder sair outra vez
+     */
+    private static VehiclePlan startNewTrip(PendingPickup item, DynamicArray<VehiclePlan> plans, InstitutionImp inst) {
+        ContainerType type = item.container.getType();
+        VehiclePlan chosen = null;
+        int chosenTrips = Integer.MAX_VALUE;
+        for (int p = 0; p < plans.size(); p++) {
+            Vehicle vehicle = plans.get(p).route.getVehicle();
+            if (vehicle.getCapacity(type) <= 0) {
+                continue;
+            }
+            int trips = 0;
+            for (int q = 0; q < plans.size(); q++) {
+                if (plans.get(q).route.getVehicle().equals(vehicle)) {
+                    trips++;
+                }
+            }
+            if (trips < MAX_TRIPS_PER_VEHICLE && trips < chosenTrips) {
+                chosenTrips = trips;
+                chosen = plans.get(p);
+            }
+        }
+        if (chosen == null) {
+            return null;
+        }
+        VehiclePlan trip = new VehiclePlan(new RouteImp(chosen.route.getVehicle(), inst, chosenTrips + 1));
+        plans.add(trip);
+        return trip;
     }
 
     private static int findSpare(DynamicArray<Container> pool, ContainerType type) {
