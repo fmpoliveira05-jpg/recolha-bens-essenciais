@@ -2,9 +2,13 @@ package recolha.ui;
 
 import com.estg.core.exceptions.InstitutionException;
 import com.estg.core.exceptions.PickingMapException;
+import com.estg.pickingManagement.PickingMap;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Path;
+import java.time.LocalDate;
+import java.time.LocalTime;
+import java.time.format.DateTimeParseException;
 import recolha.core.InstitutionImp;
 import recolha.io.DataSource;
 import recolha.io.FileDataSource;
@@ -53,8 +57,9 @@ public class MainMenu {
             this.out.println("6 - Ver último mapa de recolha");
             this.out.println("7 - Ver resumo da instituição");
             this.out.println("8 - Ver alertas");
+            this.out.println("9 - Histórico de mapas de recolha (por datas)");
             this.out.println("0 - Sair");
-            option = this.input.readInt("Opção: ", 0, 8);
+            option = this.input.readInt("Opção: ", 0, 9);
             switch (option) {
                 case 1:
                     loadData();
@@ -79,6 +84,9 @@ public class MainMenu {
                     break;
                 case 8:
                     Printer.alerts(this.out, this.institution.getAlerts().getAll());
+                    break;
+                case 9:
+                    showMapHistory();
                     break;
                 default:
                     break;
@@ -128,6 +136,32 @@ public class MainMenu {
             Printer.pickingMap(this.out, this.institution.getCurrentPickingMap());
         } catch (IllegalStateException | PickingMapException ex) {
             this.out.println("Não foi possível gerar as rotas: " + ex.getMessage());
+        }
+    }
+
+    /**
+     * Lista os mapas de recolha gerados entre duas datas (inclusive).
+     */
+    private void showMapHistory() {
+        LocalDate from = readDate("Data inicial (AAAA-MM-DD): ");
+        LocalDate to = readDate("Data final (AAAA-MM-DD): ");
+        PickingMap[] maps = this.institution.getPickingMaps(from.atStartOfDay(), to.atTime(LocalTime.MAX));
+        if (maps.length == 0) {
+            this.out.println("Não há mapas de recolha nesse intervalo.");
+            return;
+        }
+        for (PickingMap map : maps) {
+            Printer.pickingMap(this.out, map);
+        }
+    }
+
+    private LocalDate readDate(String prompt) {
+        while (true) {
+            try {
+                return LocalDate.parse(this.input.readText(prompt));
+            } catch (DateTimeParseException ex) {
+                this.out.println("Data inválida. Use o formato AAAA-MM-DD, por exemplo 2024-06-18.");
+            }
         }
     }
 

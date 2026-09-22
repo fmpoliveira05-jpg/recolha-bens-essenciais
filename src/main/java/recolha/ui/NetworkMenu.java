@@ -39,8 +39,10 @@ class NetworkMenu {
             this.out.println("1 - Adicionar caixa de suprimentos");
             this.out.println("2 - Instalar contentor numa caixa");
             this.out.println("3 - Registar leitura de um contentor");
+            this.out.println("4 - Retirar contentor de uma caixa");
+            this.out.println("5 - Ver contentor de uma caixa por tipo");
             this.out.println("0 - Voltar");
-            option = this.input.readInt("Opção: ", 0, 3);
+            option = this.input.readInt("Opção: ", 0, 5);
             try {
                 switch (option) {
                     case 1:
@@ -51,6 +53,12 @@ class NetworkMenu {
                         break;
                     case 3:
                         addMeasurement();
+                        break;
+                    case 4:
+                        removeContainer();
+                        break;
+                    case 5:
+                        showContainerByType();
                         break;
                     default:
                         break;
@@ -121,6 +129,27 @@ class NetworkMenu {
         double value = this.input.readDouble("Peso lido (kg): ", 0);
         this.institution.addMeasurement(new MeasurementImp(LocalDateTime.now(), value), container);
         this.out.println("Leitura registada.");
+    }
+
+    private void removeContainer() throws AidBoxException, ContainerException {
+        AidBox box = askAidBox("Código da caixa: ");
+        String code = this.input.readText("Código do contentor: ");
+        Container container = this.institution.findContainer(code);
+        if (container == null) {
+            throw new ContainerException("Não existe nenhum contentor instalado com o código " + code + ".");
+        }
+        box.removeContainer(container);
+        this.out.println("Contentor retirado da caixa " + box.getCode() + ".");
+    }
+
+    private void showContainerByType() throws AidBoxException, ContainerException {
+        AidBox box = askAidBox("Código da caixa: ");
+        ContainerTypeImp type = new ContainerTypeImp(this.input.readText("Tipo de bens: "));
+        Container container = this.institution.getContainer(box, type);
+        this.out.println(container);
+        for (com.estg.core.Measurement m : container.getMeasurements()) {
+            this.out.println("  - " + m);
+        }
     }
 
     private AidBox askAidBox(String prompt) throws AidBoxException {

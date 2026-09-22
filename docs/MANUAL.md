@@ -17,12 +17,13 @@ Os dados só podem ser carregados uma vez por sessão, para não duplicar leitur
 |---|---|
 | 1 – Carregar dados | importa os ficheiros JSON da pasta `data/` (ou a que for indicada ao arrancar) ou tenta a Web API |
 | 2 – Veículos | adicionar, ativar, desativar e listar veículos |
-| 3 – Caixas, contentores e leituras | criar caixas, instalar contentores e registar leituras à mão |
+| 3 – Caixas, contentores e leituras | criar caixas, instalar ou retirar contentores, registar leituras à mão e ver o contentor de um tipo numa caixa (com as leituras) |
 | 4 – Distâncias | registar distâncias entre a base e uma caixa, ou entre duas caixas |
 | 5 – Gerar rotas de recolha | cria um novo mapa de recolha com os dados atuais |
 | 6 – Ver último mapa de recolha | volta a mostrar o último plano gerado |
 | 7 – Ver resumo da instituição | caixas, contentores e ocupação |
 | 8 – Ver alertas | registos inválidos, com a data e o conteúdo original |
+| 9 – Histórico de mapas de recolha | lista os mapas gerados entre duas datas (formato AAAA-MM-DD, ambas incluídas) |
 | 0 – Sair | termina a aplicação |
 
 ## Experimentar as regras
@@ -31,6 +32,7 @@ Algumas experiências que ajudam a perceber o comportamento do planeamento:
 
 - **Desativar veículos** (menu 2 → 2) e voltar a gerar rotas: com menos veículos, alguns contentores passam a aparecer como "por recolher" no relatório.
 - **Registar uma leitura alta** (menu 3 → 3) num contentor de roupa, por exemplo 95 % da capacidade: na geração seguinte ele passa a fazer parte de uma rota.
+- **Gerar rotas várias vezes** (menu 5) e depois pedir o histórico (menu 9) com a data de hoje nos dois campos: aparecem todos os mapas gerados nesta sessão.
 - **Registar uma leitura acima da capacidade**: é recusada com uma mensagem a explicar porquê.
 
 ## Ficheiros de dados
