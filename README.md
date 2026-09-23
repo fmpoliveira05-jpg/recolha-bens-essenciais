@@ -38,10 +38,13 @@ flowchart LR
     G -- impossível --> Y[Conta como não recolhido]
     G --> E
     D --> E[Ordenar paragens pelo<br/>vizinho mais próximo]
-    E --> F[Mapa de recolha + relatório]
+    E --> H[Melhorar a ordem com 2-opt]
+    H --> F[Mapa de recolha + relatório]
 ```
 
-Na escolha do veículo dá-se preferência a um que já vá passar nessa caixa e, a seguir, ao que estiver mais perto. Quando nenhum veículo em rota tem lugar, o que fez menos viagens volta à base e sai outra vez (no máximo 3 viagens por dia). É um algoritmo guloso: não garante a solução ótima (o problema é uma variante do *Vehicle Routing Problem*, NP-difícil), mas é simples de explicar, determinístico e cumpre todas as restrições.
+Na escolha do veículo dá-se preferência a um que já vá passar nessa caixa e, a seguir, à rota onde a caixa acrescenta menos metros (inserção mais barata). Quando nenhum veículo em rota tem lugar, o que fez menos viagens volta à base e sai outra vez (no máximo 3 viagens por dia). No fim, a ordem de cada rota começa pelo vizinho mais próximo e é melhorada com **2-opt**, que inverte troços do percurso enquanto isso o encurtar.
+
+O problema é uma variante do *Vehicle Routing Problem*, que é NP-difícil: para dezenas de caixas, garantir a solução ótima exigiria testar um número de combinações que cresce de forma explosiva. A combinação usada (construção gulosa + melhoria local) é a abordagem habitual nestes casos. Com os dados de exemplo, em relação à versão só com o vizinho mais próximo, o percurso total desce de 129,6 km para 103,3 km (−20 %), com 6 veículos em vez de 8 e os mesmos 26 contentores recolhidos.
 
 ## Arquitetura
 
@@ -87,7 +90,7 @@ O [manual de utilização](docs/MANUAL.md) explica cada menu e sugere algumas ex
 mvn test
 ```
 
-40 testes JUnit 5 cobrem a lista dinâmica, as regras dos contentores e das leituras, as operações da instituição, a edição de rotas, o cálculo de distâncias (base → caixas → base) e o gerador de rotas em cenários pequenos construídos à medida. O importador é testado com os ficheiros reais e com documentos JSON inválidos. O GitHub Actions corre tudo em cada *push*.
+43 testes JUnit 5 cobrem a lista dinâmica, as regras dos contentores e das leituras, as operações da instituição, a edição de rotas, o cálculo de distâncias (base → caixas → base), o gerador de rotas em cenários pequenos construídos à medida e a otimização 2-opt (que tem de encontrar o percurso ótimo num caso conhecido). O importador é testado com os ficheiros reais e com documentos JSON inválidos. O GitHub Actions corre tudo em cada *push*.
 
 ## O que mudou na revisão de 2026
 

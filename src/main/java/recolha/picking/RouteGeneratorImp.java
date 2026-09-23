@@ -20,22 +20,26 @@ import recolha.util.DynamicArray;
 /**
  * Gera o plano de recolha do dia.
  *
- * <p>O algoritmo é guloso e foi pensado para ser fácil de explicar:</p>
+ * <p>O planeamento é feito em duas fases: construção gulosa das rotas e melhoria local.</p>
  * <ol>
  *   <li>Junta todos os contentores que precisam de ser recolhidos: alimentos perecíveis com
  *       conteúdo e restantes tipos acima de 80% da capacidade.</li>
  *   <li>Ordena-os por prioridade: primeiro os perecíveis, depois os mais cheios.</li>
  *   <li>Atribui cada contentor a um veículo ativo que suporte o tipo, ainda tenha lugar e
  *       tenha levado da base um contentor vazio do mesmo tipo para a troca. Dá preferência a
- *       um veículo que já passe nessa caixa e, a seguir, ao que estiver mais perto dela.</li>
+ *       um veículo que já passe nessa caixa e, a seguir, à rota onde a caixa acrescenta menos
+ *       metros (inserção mais barata).</li>
  *   <li>Se nenhum veículo já em rota tiver lugar, um veículo compatível regressa à base e
  *       faz uma nova viagem (o enunciado prevê que possa ser preciso mais do que um caminho),
  *       até {@link #MAX_TRIPS_PER_VEHICLE} viagens por dia.</li>
- *   <li>Por fim, ordena as paragens de cada rota pelo vizinho mais próximo, a partir da base.</li>
+ *   <li>Por fim, ordena as paragens de cada rota pelo vizinho mais próximo, a partir da base,
+ *       e melhora essa ordem com 2-opt: inverte troços da rota enquanto isso encurtar o
+ *       percurso total.</li>
  * </ol>
  * <p>Contentores que precisavam de recolha mas não couberam contam como "não recolhidos" no
  * relatório. Não é uma solução ótima (o problema é uma variante do VRP, que é NP-difícil),
- * mas é determinística e respeita todas as restrições do enunciado.</p>
+ * mas é determinística, respeita todas as restrições do enunciado e a fase de 2-opt garante que
+ * nenhuma rota pode ser encurtada invertendo um troço do percurso.</p>
  *
  * @author Francisco Miguel Pereira Oliveira
  */
@@ -100,7 +104,7 @@ public class RouteGeneratorImp implements RouteGenerator {
         for (int p = 0; p < plans.size(); p++) {
             VehiclePlan plan = plans.get(p);
             if (plan.route.getNumStops() > 0) {
-                plan.route.reorder(nearestNeighbourOrder(plan.route.getRoute(), inst));
+                plan.route.reorder(twoOpt(nearestNeighbourOrder(plan.route.getRoute(), inst), inst));
                 totalDistance += plan.route.getTotalDistance();
                 totalDuration += plan.route.getTotalDuration();
                 usedRoutes.add(plan.route);
@@ -175,7 +179,7 @@ public class RouteGeneratorImp implements RouteGenerator {
             if (!plan.route.containsAidBox(item.aidBox) && !plan.canVisit(item.aidBox)) {
                 continue;
             }
-            double score = plan.route.containsAidBox(item.aidBox) ? -1 : distanceFromLastStop(plan.route, item.aidBox, inst);
+            double score = plan.route.containsAidBox(item.aidBox) ? -1 : insertionCost(plan.route.getRoute(), item.aidBox, inst);
             if (score < bestScore) {
                 bestScore = score;
                 best = plan;
@@ -251,20 +255,100 @@ public class RouteGeneratorImp implements RouteGenerator {
         }
     }
 
-    private static double distanceFromLastStop(RouteImp route, AidBox target, InstitutionImp inst) {
-        AidBox[] stops = route.getRoute();
+    /**
+     * Distância de um troço; {@code null} representa a base.
+     */
+    private static double leg(AidBox from, AidBox to, InstitutionImp inst) {
         try {
-            return stops.length == 0 ? inst.getDistance(target) : stops[stops.length - 1].getDistance(target);
+            if (from == null && to == null) {
+                return 0;
+            }
+            if (from == null) {
+                return inst.getDistance(to);
+            }
+            if (to == null) {
+                return inst.getDistance(from);
+            }
+            return from.getDistance(to);
         } catch (AidBoxException ex) {
-            return Double.MAX_VALUE / 2;
+            // Troço desconhecido: fica tão caro que nunca é escolhido se houver alternativa.
+            return Double.MAX_VALUE / 1e6;
         }
+    }
+
+    /**
+     * Comprimento de um percurso base → paragens → base.
+     *
+     * @param order paragens pela ordem de visita
+     * @param inst instituição (distâncias à base)
+     * @return metros
+     */
+    static double routeLength(AidBox[] order, InstitutionImp inst) {
+        double total = 0;
+        AidBox previous = null;
+        for (AidBox box : order) {
+            total += leg(previous, box, inst);
+            previous = box;
+        }
+        return total + leg(previous, null, inst);
+    }
+
+    /**
+     * Metros que uma caixa acrescenta a uma rota se for inserida na melhor posição possível.
+     */
+    private static double insertionCost(AidBox[] stops, AidBox target, InstitutionImp inst) {
+        double best = Double.MAX_VALUE;
+        for (int position = 0; position <= stops.length; position++) {
+            AidBox before = position == 0 ? null : stops[position - 1];
+            AidBox after = position == stops.length ? null : stops[position];
+            double extra = leg(before, target, inst) + leg(target, after, inst) - leg(before, after, inst);
+            if (extra < best) {
+                best = extra;
+            }
+        }
+        return best;
+    }
+
+    /**
+     * Melhoria 2-opt: enquanto houver um troço cuja inversão encurte o percurso, inverte-o.
+     * Como as distâncias entre caixas podem não ser simétricas, cada candidato é avaliado pelo
+     * comprimento total da rota.
+     *
+     * @param order ordem inicial (por exemplo, a do vizinho mais próximo)
+     * @param inst instituição (distâncias à base)
+     * @return uma ordem igual ou mais curta
+     */
+    static AidBox[] twoOpt(AidBox[] order, InstitutionImp inst) {
+        AidBox[] best = order.clone();
+        double bestLength = routeLength(best, inst);
+        boolean improved = true;
+        while (improved) {
+            improved = false;
+            for (int i = 0; i < best.length - 1; i++) {
+                for (int j = i + 1; j < best.length; j++) {
+                    AidBox[] candidate = best.clone();
+                    for (int left = i, right = j; left < right; left++, right--) {
+                        AidBox tmp = candidate[left];
+                        candidate[left] = candidate[right];
+                        candidate[right] = tmp;
+                    }
+                    double length = routeLength(candidate, inst);
+                    if (length + 1e-9 < bestLength) {
+                        best = candidate;
+                        bestLength = length;
+                        improved = true;
+                    }
+                }
+            }
+        }
+        return best;
     }
 
     /**
      * Ordena as paragens escolhendo sempre a caixa mais próxima da posição atual,
      * começando na base.
      */
-    private static AidBox[] nearestNeighbourOrder(AidBox[] stops, InstitutionImp inst) {
+    static AidBox[] nearestNeighbourOrder(AidBox[] stops, InstitutionImp inst) {
         AidBox[] ordered = new AidBox[stops.length];
         boolean[] visited = new boolean[stops.length];
         AidBox current = null;
